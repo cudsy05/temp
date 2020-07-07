@@ -1,0 +1,208 @@
+command /shsetup:
+  permission: sh.setup
+  aliases: /shs
+  trigger:
+    if {sh.setup} isn't "complete":
+      set {sh.spawn} to location of player
+      set {sh.world} to world
+      message "&0[&bSH&0]&a Setup is taking place in &2%{sh.world}%&a if you don't want to play in this world do &2/shunsetup&a and then do &2/shsetup&a in the world you want to play in."
+      set {sh.setup} to "complete"
+      message ""
+      message "&0[&bSH&0]&a Setup is complete! Do &2/shstart&a to start the game."
+      message ""
+      set {sh.amount} to size of all players in world {sh.world}
+      if {sh.amount} > 2:
+        message "&0[&bSH&0]&cNOTE this is made to be played with 2 people, playing with any more WILL break the game."
+        message ""
+
+    else:
+      message "&0[&bSH&0]&cYour setup is already complete. Do &2/shstart&c to start your game"
+
+command /sh:
+  aliases: /shh, /shhelp
+  trigger:
+    message "&c[&b&l+&c]&a Speedrunner x Hunter Help&c [&b&l+&c]"
+    message "&c[&b1&c]&2 /shsetup&a use to setup the plugin in the world you are in."
+    message "&c[&b2&c]&2 /shunsetup&a use to undo the setup."
+    message "&c[&b3&c]&2 /shstart&a starts the game."
+    message "&c[&b1&c]&2 /shcancel&a cancels the game."
+    message "&c[&b&l+&c]&a Speedrunner x Hunter Help&c [&b&l+&c]"
+
+
+command /shunsetup:
+  permission: sh.unsetup
+  trigger:
+    if {sh.setup} is "complete":
+      clear {sh.spawn}
+      clear {sh.world}
+      clear {sh.setup}
+      if {sh.started} is "true":
+        clear {sh.playing::*}
+        clear {sh.started}
+        loop all players:
+          if {sh.kit.%uuid of loop-player%} is set:
+            clear {sh.kit.%uuid of loop-player%}
+      message "&0[&bSH&0]&a The UnSetup was succesful! Do &2/shsetup&a to set it up again."
+    else:
+      message "&0[&bSH&0]&c There is no setup to undo"
+
+command /shcancel:
+  permission: sh.cancel
+  trigger:
+    if {sh.started} is "true":
+      message "&0[&bSH&0]&c Game is being cancelled..." to {sh.playing::*}
+      teleport {sh.playing::*} to location {sh.spawn}
+      clear {sh.playing::*}
+      clear {sh.started}
+      loop all players:
+        if {sh.kit.%uuid of loop-player%} is set:
+          clear {sh.kit.%uuid of loop-player%}
+    else:
+      message "&0[&bSH&0]&c You can't cancel a game that hasn't started! Do &2/shstart&c to start."
+
+on damage:
+  if victim is a player:
+    if victim is in world {sh.world}:
+      if {sh.setup} is "complete":
+        if {sh.started} isn't "true":
+          cancel event
+          message "&0[&bSH&0]&cYou can't deal damage until the game has started, do &2/shstart&c to start." to attacker
+
+command /shprint:
+  trigger:
+    message "%{sh.setup}%"
+
+command /shstart:
+  permission: sh.start
+  trigger:
+    if {sh.setup} is "complete":
+      if {sh.started} isn't "true":
+        message "&0[&bSH&0]&a Opening start game GUI"
+        set {sh.starting} to "true"
+        set {sh.inventory} to chest inventory with 1 row named "&2Start"
+        set {sh.hunter.item} to diamond sword of sharpness 1 named "&cHunter"
+        set {sh.speedrun.item} to feather of protection 1 named "&2Speed Runner"
+        set slot 5 of {sh.inventory} to {sh.hunter.item}
+        set slot 3 of {sh.inventory} to {sh.speedrun.item}
+        set {sh.filler} to gray stained glass pane named "&7Filler"
+        set slot 0 of {sh.inventory} to {sh.filler}
+        set slot 1 of {sh.inventory} to {sh.filler}
+        set slot 2 of {sh.inventory} to {sh.filler}
+        set slot 4 of {sh.invnentory} to {sh.filler}
+        set slot 6 of {sh.inventory} to {sh.filler}
+        set slot 7 of {sh.inventory} to {sh.filler}
+        set slot 8 of {sh.inventory} to {sh.filler}
+        open {sh.inventory} to player
+
+
+        set {sh.startopened} to "true"
+      else:
+        message "&0[&bSH&0]&c The game is already started!"
+    else:
+      message "&0[&bSH&0] &cSetup is not complete"
+
+on inventory click:
+  if event.getView().getTitle() is "&2Start":
+    if event-slot is {sh.filler}:
+      cancel event
+
+on inventory click:
+  if event.getView().getTitle() is "&2Start":
+    if event-slot is {sh.hunter.item}:
+      cancel event
+      close player's inventory
+      execute player command "/shhunter"
+
+on inventory click:
+  if event.getView().getTitle() is "&2Start":
+    if event-slot is {sh.speedrun.item}:
+      cancel event
+      close player's inventory
+      execute player command "/shspeedrun"
+
+
+
+
+on inventory close:
+  if inventory name of current inventory of player contains "&2Start":
+    if {sh.starting} is "true":
+      set {sh.starting} to "false"
+      execute player command "/shstart"
+
+
+command /shspeedrun:
+  trigger:
+    if {sh.startopened} is "true":
+      if {sh.kit.%uuid of player%} isn't set:
+        add player to {sh.playing::*}
+        set {sh.kit.%uuid of player%} to "speedrun"
+        set {sh.started} to "true"
+        set {sh.starting} to "false"
+        execute console command "/effect give %player% speed 20 2"
+        loop (all players in world {sh.world}) where [input != player]:
+          set {sh.kit.%uuid of loop-player%} to "hunter"
+          give a compass to loop-player
+          execute console command "/effect give %loop-player% blindness 10"
+          add loop-player to {sh.playing::*}
+          send title "&bGame Has Started" with subtitle "&2The runner gets a head start" to {sh.playing::*} for 3 seconds
+          teleport {sh.playing::*} to location {sh.spawn}
+        message "&0[&bSH&0]&a Game has started! Do &2/shcancel&a to cancel the game." to {sh.playing::*}
+
+
+command /shhunter:
+  trigger:
+    if {sh.startopened} is "true":
+      if {sh.kit.%uuid of player%} isn't set:
+        add player to {sh.playing::*}
+        set {sh.kit.%uuid of player%} to "hunter"
+        set {sh.started} to "true"
+        set {sh.starting} to "false"
+        give a compass to player
+        execute console command "/effect give %player% blindness 10"
+        loop (all players in world {sh.world}) where [input != player]:
+          set {sh.kit.%uuid of loop-player%} to "speedrun"
+          execute console command "/effect give %loop-player% speed 20 2"
+          add loop-player to {sh.playing::*}
+          send title "&bGame Has Started" with subtitle "&2The runner gets a head start" to {sh.playing::*} for 3 seconds
+          teleport {sh.playing::*} to location {sh.spawn}
+        message "&0[&bSH&0]&a Game has started! Do &2/shcancel&a to cancel the game." to {sh.playing::*}
+
+on death:
+  if {sh.playing::*} contains "%player%":
+    if {sh.kit.%uuid of player%} is "speedrun":
+      message "&0[&bSH&0] &a%player% died and the game is over! Do &2/shstart&a to play again! If you want to change the world you will have to do &2/shunsetup" to {sh.playing::*}
+      teleport {sh.playing::*} to location {sh.spawn}
+      clear {sh.playing::*}
+      clear {sh.started}
+      loop all players:
+        if {sh.kit.%uuid of loop-player%} is set:
+          clear {sh.kit.%uuid of loop-player%}
+
+on player world change:
+  if {sh.playing::*} contains "%player%":
+    if {sh.started} is "true":
+      if {sh.kit.%uuid of player%} is "hunter":
+        message "&4-----------"
+        message "&0[&bSH&0]&c We see you just switched worlds, if this was just to the end or nether ignore this message but if you went to a world other then those two this could break the game."
+        message "&4-----------"
+      if {sh.kit.%uuid of player%} is "speedrun":
+
+        message "&0[&bSH&0]&2 %player%&c just switched to world: &2%world%&c!" to {sh.playing::*}
+
+        message "&4-----------"
+        message "&0[&bSH&0]&c We see you just switched worlds, if this was just to the end or nether ignore this message but if you went to a world other then those two this could break the game."
+        message "&4-----------"
+
+on right click:
+  if player is holding a compass:
+    if {sh.started} is "true":
+      if {sh.kit.%uuid of player%} is "hunter":
+        set player's tool to a compass named "&6Right click to &4| &6Point toward nearest player"
+        loop all players where [input != player]:
+          set {_close.%uuid of player%} to loop-player
+          set the player's compass target to location of {_close.%uuid of player%}
+
+on death:
+  if {sh.started} is "true":
+    if {sh.kit.%uuid of player%} is "hunter":
+      give player a compass
